@@ -21,6 +21,9 @@
 
 namespace log_internal {
 
+// Global file pointer for optional file logging
+inline FILE* g_log_file = nullptr;
+
 template <typename T>
 auto wrap_arg(T&& arg) {
     return std::forward<T>(arg);
@@ -30,9 +33,30 @@ inline const char* wrap_arg(const std::string& s) { return s.c_str(); }
 
 } // namespace log_internal
 
+// Enable logging to file
+inline void enable_log_file(const char* filename = "nwvmt.log") {
+    log_internal::g_log_file = std::fopen(filename, "w");
+}
+
+// Disable logging to file
+inline void disable_log_file() {
+    if (log_internal::g_log_file != nullptr) {
+        std::fclose(log_internal::g_log_file);
+        log_internal::g_log_file = nullptr;
+    }
+}
+
 template <typename... Args>
 void log(const char* fmt, Args&&... args) {
+    // Print to stdout
     std::printf(fmt, log_internal::wrap_arg(std::forward<Args>(args))...);
     std::puts("");
+    
+    // Also print to file if enabled
+    if (log_internal::g_log_file != nullptr) {
+        std::fprintf(log_internal::g_log_file, fmt, log_internal::wrap_arg(std::forward<Args>(args))...);
+        std::fputc('\n', log_internal::g_log_file);
+        std::fflush(log_internal::g_log_file);
+    }
 }
 

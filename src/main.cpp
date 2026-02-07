@@ -112,10 +112,13 @@ void run(const std::uint16_t bus_width, const std::uint8_t num_chips) {
     log("Test video mode: %#X [%dx%dx%d]", mode.id, mode.width, mode.height,
         mode.bits_per_pixel);
 
-    log("\nThe test can take up to several minutes");
-    log("Press [ENTER] to continue");
+    std::puts("\nThe test can take up to several minutes");
+    std::puts("Press [ENTER] to continue");
     getchar();
     const auto test_result = test_video_memory(mode.id, bus_width, num_chips);
+
+    log("\nResult:");
+    log("----------");
     for (auto i = 0u; i < test_result.size(); i++) {
         log("Chip %d: %s", i, test_result[i] ? "OK" : "BAD");
     }
@@ -125,12 +128,10 @@ void run(const std::uint16_t bus_width, const std::uint8_t num_chips) {
 
 int main(int argc, const char* argv[]) {
     try {
-        log("Necroware's Video Memory Tester");
-        log("Version " PROJECT_VERSION " (build date " PROJECT_BUILD_DATE ")\n");
-
         const auto params = std::vector<cli::param_decl>{
             {"chips", true, 0, "Number of chips on the card"},
             {"bus", true, 0, "Memory bus width in bits"},
+            {"log", false, false, "Enable logging to nwvmt.log file"},
         };
 
         const auto args = cli::args_parser{argc, argv, params};
@@ -139,7 +140,23 @@ int main(int argc, const char* argv[]) {
             return EXIT_SUCCESS;
         }
 
+        if (!args.validate()) {
+            args.print_usage();
+            return EXIT_FAILURE;
+        }
+
+        // Enable file logging if requested (before printing banner)
+        if (args.get<bool>("log")) {
+            enable_log_file();
+        }
+
+        log("Necroware's Video Memory Tester");
+        log("Version " PROJECT_VERSION " (build date " PROJECT_BUILD_DATE ")\n");
+
         run(args.get<int>("bus"), args.get<int>("chips"));
+        
+        // Clean up file logging
+        disable_log_file();
         return EXIT_SUCCESS;
     } catch (std::exception& ex) {
         log("error: %s", ex.what());

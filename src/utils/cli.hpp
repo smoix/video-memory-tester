@@ -59,12 +59,15 @@ public:
             return;
         }
 
-        // check required
+    }
+
+    [[nodiscard]] auto validate() const -> bool {
         for (const auto& decl : m_decls) {
             if (decl.required && !m_values.contains(decl.name)) {
-                throw error("missing required parameter: --" + decl.name);
+                return false;
             }
         }
+        return true;
     }
 
     [[nodiscard]] auto has(const std::string& key) const -> bool {
