@@ -41,10 +41,10 @@ auto find_best_mode() -> vbe::mode_info_t {
 
 auto test_video_memory(const std::uint16_t mode_id,
                        const std::uint16_t bus_width,
-                       const std::uint8_t num_chips) {
+                       const std::uint8_t num_chips,
+                       const std::size_t size) {
 
-    const auto fb = vbe::framebuffer{mode_id};
-    const auto size = vbe::get_total_memory_size();
+    const auto fb = vbe::framebuffer{mode_id, size};
     const auto bus_width_in_bytes = bus_width / bits_per_byte;
     const auto bytes_per_chip = bus_width_in_bytes / num_chips;
 
@@ -92,12 +92,16 @@ void check_arguments(const std::uint16_t bus_width,
     }
 }
 
-void run(const std::uint16_t bus_width, const std::uint8_t num_chips) {
+void run(const std::uint16_t bus_width, const std::uint8_t num_chips,
+         const int size_override) {
 
     check_arguments(bus_width, num_chips);
 
     const auto oem_info = vbe::get_oem_info();
-    const auto total_memory = vbe::get_total_memory_size();
+    const auto total_memory = size_override > 0
+                                  ? static_cast<std::size_t>(size_override) *
+                                        1024u * 1024u
+                                  : vbe::get_total_memory_size();
     const auto mode = find_best_mode();
 
     log("Test Info:");
@@ -106,7 +110,11 @@ void run(const std::uint16_t bus_width, const std::uint8_t num_chips) {
     log("Vendor: %s", oem_info.vendor_name);
     log("Product: %s", oem_info.product_name);
     log("Revision: %s", oem_info.revision_name);
-    log("Total Memory: %dMB", total_memory / (1024u * 1024u));
+    if (size_override > 0) {
+        log("Total Memory: %dMB (manual override)", total_memory / (1024u * 1024u));
+    } else {
+        log("Total Memory: %dMB", total_memory / (1024u * 1024u));
+    }
     log("Memory bus: %d-bit", bus_width);
     log("Number of chips: %d", num_chips);
     log("Test video mode: %#X [%dx%dx%d]", mode.id, mode.width, mode.height,
@@ -115,7 +123,8 @@ void run(const std::uint16_t bus_width, const std::uint8_t num_chips) {
     std::puts("\nThe test can take up to several minutes");
     std::puts("Press [ENTER] to continue");
     getchar();
-    const auto test_result = test_video_memory(mode.id, bus_width, num_chips);
+    const auto test_result =
+        test_video_memory(mode.id, bus_width, num_chips, total_memory);
 
     log("\nResult:");
     log("----------");
@@ -131,6 +140,7 @@ int main(int argc, const char* argv[]) {
         const auto params = std::vector<cli::param_decl>{
             {"chips", true, 0, "Number of chips on the card"},
             {"bus", true, 0, "Memory bus width in bits"},
+            {"size", false, 0, "Manual override for video memory size in MB"},
             {"log", false, false, "Enable logging to nwvmt.log file"},
         };
 
@@ -153,7 +163,8 @@ int main(int argc, const char* argv[]) {
         log("Necroware's Video Memory Tester");
         log("Version " PROJECT_VERSION " (build date " PROJECT_BUILD_DATE ")\n");
 
-        run(args.get<int>("bus"), args.get<int>("chips"));
+        run(args.get<int>("bus"), args.get<int>("chips"),
+            args.get<int>("size"));
         
         // Clean up file logging
         disable_log_file();

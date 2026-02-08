@@ -186,9 +186,10 @@ std::vector<mode_info_t> get_modes() {
 
 class framebuffer::impl {
 public:
-    explicit impl(const internal::mode_info_t& mode_info)
+    explicit impl(const internal::mode_info_t& mode_info, std::size_t size)
     : m_mode_info{mode_info},
-      m_mapping{m_mode_info.phys_base_ptr, get_total_memory_size()} {}
+      m_mapping{m_mode_info.phys_base_ptr,
+                size > 0 ? size : get_total_memory_size()} {}
 
     [[nodiscard]] auto selector() const { return m_mapping.selector(); }
 
@@ -197,10 +198,10 @@ private:
     dpmi::physical_memory_mapping m_mapping;
 };
 
-framebuffer::framebuffer(std::uint16_t mode_id) {
+framebuffer::framebuffer(std::uint16_t mode_id, std::size_t size) {
     const auto mode_info = internal::get_mode_info(mode_id);
     internal::set_mode(mode_id);
-    m_pimpl = std::make_unique<impl>(std::move(mode_info));
+    m_pimpl = std::make_unique<impl>(std::move(mode_info), size);
 }
 
 framebuffer::~framebuffer() { internal::reset_mode(); }
