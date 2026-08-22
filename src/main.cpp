@@ -20,6 +20,7 @@
 #include <vbe.hpp>
 #include <version.h>
 
+#include <limits>
 #include <stdexcept>
 
 namespace {
@@ -27,6 +28,7 @@ namespace {
 using error = std::runtime_error;
 
 constexpr auto bits_per_byte = 8u;
+constexpr auto bytes_per_mb = std::uint64_t{1024u * 1024u};
 
 auto find_best_mode() -> vbe::mode_info_t {
 
@@ -92,16 +94,28 @@ void check_arguments(const std::uint16_t bus_width,
     }
 }
 
+auto resolve_total_memory(const int size_override) -> std::size_t {
+    if (size_override == 0) {
+        return vbe::get_total_memory_size();
+    }
+    if (size_override < 0) {
+        throw error("Memory size override must be a positive value");
+    }
+    const auto bytes =
+        static_cast<std::uint64_t>(size_override) * bytes_per_mb;
+    if (bytes > std::numeric_limits<std::size_t>::max()) {
+        throw error("Memory size override is too large");
+    }
+    return static_cast<std::size_t>(bytes);
+}
+
 void run(const std::uint16_t bus_width, const std::uint8_t num_chips,
          const int size_override) {
 
     check_arguments(bus_width, num_chips);
 
     const auto oem_info = vbe::get_oem_info();
-    const auto total_memory = size_override > 0
-                                  ? static_cast<std::size_t>(size_override) *
-                                        1024u * 1024u
-                                  : vbe::get_total_memory_size();
+    const auto total_memory = resolve_total_memory(size_override);
     const auto mode = find_best_mode();
 
     log("Test Info:");
@@ -110,11 +124,8 @@ void run(const std::uint16_t bus_width, const std::uint8_t num_chips,
     log("Vendor: %s", oem_info.vendor_name);
     log("Product: %s", oem_info.product_name);
     log("Revision: %s", oem_info.revision_name);
-    if (size_override > 0) {
-        log("Total Memory: %dMB (manual override)", total_memory / (1024u * 1024u));
-    } else {
-        log("Total Memory: %dMB", total_memory / (1024u * 1024u));
-    }
+    log("Total Memory: %dMB%s", total_memory / (1024u * 1024u),
+        size_override > 0 ? " (manual override)" : "");
     log("Memory bus: %d-bit", bus_width);
     log("Number of chips: %d", num_chips);
     log("Test video mode: %#X [%dx%dx%d]", mode.id, mode.width, mode.height,
@@ -151,6 +162,10 @@ int main(int argc, const char* argv[]) {
         }
 
         if (!args.validate()) {
+            for (const auto& name : args.missing_required()) {
+                std::fprintf(stderr, "error: missing required parameter: --%s\n",
+                             name.c_str());
+            }
             args.print_usage();
             return EXIT_FAILURE;
         }

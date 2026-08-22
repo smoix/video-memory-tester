@@ -61,13 +61,18 @@ public:
 
     }
 
-    [[nodiscard]] auto validate() const -> bool {
+    [[nodiscard]] auto missing_required() const -> std::vector<std::string> {
+        std::vector<std::string> missing;
         for (const auto& decl : m_decls) {
             if (decl.required && !m_values.contains(decl.name)) {
-                return false;
+                missing.push_back(decl.name);
             }
         }
-        return true;
+        return missing;
+    }
+
+    [[nodiscard]] auto validate() const -> bool {
+        return missing_required().empty();
     }
 
     [[nodiscard]] auto has(const std::string& key) const -> bool {

@@ -24,6 +24,20 @@ card. Unfortunately it is not possible to tell which chips and how many of those
 are installed on the tested card, so this information has to be provided by the
 user and is used for the result calculations.
 
+# Usage
+
+    nwvmt.exe --bus=<bits> --chips=<n> [--size=<MB>] [--log]
+
+- `--bus=<int>` (required): Memory bus width of the card in bits.
+- `--chips=<int>` (required): Number of memory chips installed on the card.
+- `--size=<int>` (optional): Manual override for the video memory size in MB,
+  in case it isn't correctly detected via VBE.
+- `--log` (optional): Enable logging of the card detection and test result to
+  `nwvmt.log` in the current directory.
+- `--help`: Show usage information.
+
+Running `nwvmt.exe` without any arguments prints the usage information above.
+
 # Current limitations
 
 - Needs pure DOS without any memory managers loaded
@@ -42,7 +56,7 @@ tool by 300%. The project utilizes DJGPP C++ (12.0) compiler and CMake (3.23).
 # How to build
 
 cmake -B build -S src \
-    -DCMAKE_TOOLCHAIN_FILE=toolchain-djgpp.cmake -DCMAKE_BUILD_TYPE=Release
+    -DCMAKE_TOOLCHAIN_FILE=../toolchain-djgpp.cmake -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
 # License
