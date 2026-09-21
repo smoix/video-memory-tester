@@ -187,9 +187,7 @@ std::vector<mode_info_t> get_modes() {
 class framebuffer::impl {
 public:
     explicit impl(const internal::mode_info_t& mode_info, std::size_t size)
-    : m_mode_info{mode_info},
-      m_mapping{m_mode_info.phys_base_ptr,
-                size > 0 ? size : get_total_memory_size()} {}
+    : m_mode_info{mode_info}, m_mapping{m_mode_info.phys_base_ptr, size} {}
 
     [[nodiscard]] auto selector() const { return m_mapping.selector(); }
 

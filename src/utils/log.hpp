@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdio>
+#include <stdexcept>
 #include <string>
 
 namespace log_internal {
@@ -36,6 +37,10 @@ inline const char* wrap_arg(const std::string& s) { return s.c_str(); }
 // Enable logging to file
 inline void enable_log_file(const char* filename = "nwvmt.log") {
     log_internal::g_log_file = std::fopen(filename, "w");
+    if (log_internal::g_log_file == nullptr) {
+        throw std::runtime_error(std::string("failed to open log file: ") +
+                                  filename);
+    }
 }
 
 // Disable logging to file

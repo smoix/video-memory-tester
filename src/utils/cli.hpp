@@ -54,11 +54,6 @@ public:
         for (int i = 1; i < argc; ++i) {
             parse_argument(argv[i]);
         }
-
-        if (wants_help()) {
-            return;
-        }
-
     }
 
     [[nodiscard]] auto missing_required() const -> std::vector<std::string> {
@@ -163,7 +158,18 @@ private:
         const auto key = arg.substr(2, eq == std::string::npos ? eq : eq - 2);
         const auto& decl = find_decl(key);
         if (std::holds_alternative<bool>(decl.default_value)) {
-            m_values[key] = true;
+            if (eq == std::string::npos) {
+                m_values[key] = true;
+            } else {
+                const auto value = arg.substr(eq + 1);
+                if (value == "true" || value == "1") {
+                    m_values[key] = true;
+                } else if (value == "false" || value == "0") {
+                    m_values[key] = false;
+                } else {
+                    throw error("invalid value for --" + key + ": " + value);
+                }
+            }
         } else if (eq != std::string::npos) {
             const auto value = arg.substr(eq + 1);
             m_values[key] = from_string(decl, value);

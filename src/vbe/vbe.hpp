@@ -39,7 +39,7 @@ struct mode_info_t {
 
 class framebuffer {
 public:
-    explicit framebuffer(std::uint16_t mode_id, std::size_t size = 0);
+    explicit framebuffer(std::uint16_t mode_id, std::size_t size);
     ~framebuffer();
 
     framebuffer(const framebuffer&) = delete;

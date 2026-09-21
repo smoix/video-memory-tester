@@ -22,6 +22,7 @@
 
 #include <limits>
 #include <stdexcept>
+#include <string_view>
 
 namespace {
 
@@ -81,13 +82,17 @@ auto test_video_memory(const std::uint16_t mode_id,
     return result;
 }
 
-void check_arguments(const std::uint16_t bus_width,
-                     const std::uint8_t num_chips) {
+void check_arguments(const int bus_width, const int num_chips) {
+    if (bus_width <= 0 ||
+        bus_width > std::numeric_limits<std::uint16_t>::max()) {
+        throw error("Memory bus width must be between 1 and 65535 bits");
+    }
+    if (num_chips <= 0 ||
+        num_chips > std::numeric_limits<std::uint8_t>::max()) {
+        throw error("Number of chips must be between 1 and 255");
+    }
     if (bus_width < bits_per_byte) {
         throw error("Memory bus width has to be at least 8-bit");
-    }
-    if (num_chips == 0u) {
-        throw error("Invalid number of chips");
     }
     if (bus_width / num_chips < bits_per_byte) {
         throw error("Cards with less than a byte per chip are not supported");
@@ -101,16 +106,36 @@ auto resolve_total_memory(const int size_override) -> std::size_t {
     if (size_override < 0) {
         throw error("Memory size override must be a positive value");
     }
+    // VBE reports total memory as a count of 64KB blocks in a 16-bit field,
+    // so no VBE 2.0 card can ever legitimately have more memory than this.
+    constexpr auto max_vbe_memory =
+        std::uint64_t{std::numeric_limits<std::uint16_t>::max()} * 64u *
+        1024u;
     const auto bytes =
         static_cast<std::uint64_t>(size_override) * bytes_per_mb;
-    if (bytes > std::numeric_limits<std::size_t>::max()) {
-        throw error("Memory size override is too large");
+    if (bytes > max_vbe_memory) {
+        throw error("Memory size override exceeds the maximum size a VBE "
+                    "2.0 card can report (4095 MB)");
     }
     return static_cast<std::size_t>(bytes);
 }
 
-void run(const std::uint16_t bus_width, const std::uint8_t num_chips,
-         const int size_override) {
+auto wants_log_flag(int argc, const char* argv[]) -> bool {
+    auto requested = false;
+    for (int i = 1; i < argc; ++i) {
+        const std::string_view arg{argv[i]};
+        if (arg == "--log") {
+            requested = true;
+        } else if (arg == "--log=false" || arg == "--log=0") {
+            requested = false;
+        } else if (arg.starts_with("--log=")) {
+            requested = true;
+        }
+    }
+    return requested;
+}
+
+void run(const int bus_width, const int num_chips, const int size_override) {
 
     check_arguments(bus_width, num_chips);
 
@@ -148,6 +173,12 @@ void run(const std::uint16_t bus_width, const std::uint8_t num_chips,
 
 int main(int argc, const char* argv[]) {
     try {
+        // Detect --log from the raw arguments before parsing, so that any
+        // parsing or validation error below is captured in the log file too.
+        if (wants_log_flag(argc, argv)) {
+            enable_log_file();
+        }
+
         const auto params = std::vector<cli::param_decl>{
             {"chips", true, 0, "Number of chips on the card"},
             {"bus", true, 0, "Memory bus width in bits"},
@@ -158,6 +189,7 @@ int main(int argc, const char* argv[]) {
         const auto args = cli::args_parser{argc, argv, params};
         if (args.wants_help()) {
             args.print_usage();
+            disable_log_file();
             return EXIT_SUCCESS;
         }
 
@@ -167,12 +199,8 @@ int main(int argc, const char* argv[]) {
                              name.c_str());
             }
             args.print_usage();
+            disable_log_file();
             return EXIT_FAILURE;
-        }
-
-        // Enable file logging if requested (before printing banner)
-        if (args.get<bool>("log")) {
-            enable_log_file();
         }
 
         log("Necroware's Video Memory Tester");
@@ -180,12 +208,12 @@ int main(int argc, const char* argv[]) {
 
         run(args.get<int>("bus"), args.get<int>("chips"),
             args.get<int>("size"));
-        
-        // Clean up file logging
+
         disable_log_file();
         return EXIT_SUCCESS;
     } catch (std::exception& ex) {
         log("error: %s", ex.what());
+        disable_log_file();
         return EXIT_FAILURE;
     }
 }

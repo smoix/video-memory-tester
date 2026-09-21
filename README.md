@@ -55,9 +55,11 @@ tool by 300%. The project utilizes DJGPP C++ (12.0) compiler and CMake (3.23).
 
 # How to build
 
-cmake -B build -S src \
-    -DCMAKE_TOOLCHAIN_FILE=../toolchain-djgpp.cmake -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+Using the same Docker image the CI build uses (no local DJGPP install needed):
+
+    docker run --rm -v "$PWD":/work -w /work jagholin/dosbox-gcc:latest \
+        bash -c "apt-get update -qq && apt-get install -y -qq cmake && \
+                 cmake -B build -S src -DCMAKE_BUILD_TYPE=Release && cmake --build build"
 
 # License
 
