@@ -26,24 +26,70 @@ user and is used for the result calculations.
 
 # Usage
 
-    nwvmt.exe --bus=<bits> --chips=<n> [--size=<MB>] [--log]
+    nwvmt.exe --bus=<bits> --chips=<n> [--size=<MB>] [--passes=<n>] [--yes] [--log]
 
 - `--bus=<int>` (required): Memory bus width of the card in bits.
 - `--chips=<int>` (required): Number of memory chips installed on the card.
+  The bus width has to split into whole bytes per chip.
 - `--size=<int>` (optional): Manual override for the video memory size in MB,
   in case it isn't correctly detected via VBE.
+- `--passes=<int>` (optional): Number of test passes, default 1. `0` repeats
+  the test until a key is pressed, which helps to catch faults that only show
+  up once the card is warm.
+- `--yes` (optional): Start the test without waiting for [ENTER].
 - `--log` (optional): Enable logging of the card detection and test result to
   `nwvmt.log` in the current directory.
 - `--help`: Show usage information.
 
+Values can also be passed as a separate argument (`--bus 128`), which is what
+DOS batch files turn `--bus=128` into. Pressing any key during the test stops
+it after the current pattern.
+
 Running `nwvmt.exe` without any arguments prints the usage information above.
+
+Examples:
+
+    rem 128-bit card with 4 chips, one pass, log the result
+    nwvmt.exe --bus=128 --chips=4 --log
+
+    rem repeat until a key is pressed, to catch faults of a warm card
+    nwvmt.exe --bus=128 --chips=4 --passes=0 --log
+
+    rem VBE reports the wrong size, test 256MB, start without prompt
+    nwvmt.exe --bus=128 --chips=8 --size=256 --yes --log
+
+# Test patterns and result
+
+Every pass writes the whole video memory and reads it back with the patterns
+`0x00`, `0xFF`, `0xAA`, `0x55`, the address of every 32-bit word, its inverse
+and a pseudo random pattern derived from the address. The address based
+patterns give every word a unique value, so broken address lines or a too
+large `--size` show up as errors.
+
+For every chip the result shows:
+
+- the number of bad bytes,
+- the bus data bits (`D0`...) that read 1 instead of 0 and 0 instead of 1,
+  which tells a single broken pin or solder joint from a dead chip,
+- the lowest and highest bad address, and the address bits which have the
+  same value in all errors. Such bits mean that only a part of the memory is
+  affected, e.g. a second rank of chips, a broken address line, or a card
+  whose memory controller interleaves channels so that the chip numbers don't
+  match the physical chips.
+
+It also lists the errors per pattern, the first 16 bad bytes, and the errors
+and duration of every pass.
+
+Chip numbers are logical slices of the bus (chip 0 holds the lowest bytes).
+How they map to the chips on the PCB depends on the card, and boards often swap
+data bits within a byte, so verify the position before replacing a chip.
 
 # Current limitations
 
 - Needs pure DOS without any memory managers loaded
 - Supports only VBE 2.0 capable graphics cards
 - The memory chips on the card have to be at least 8-bit or multiple of 8-bits
-- No graphical interface or user feedback during the tests
+- No graphical interface or progress feedback during the tests
 
 # Programming details
 

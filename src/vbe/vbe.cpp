@@ -21,6 +21,7 @@
 #include <go32.h>
 #include <sys/farptr.h>
 
+#include <cstdio>
 #include <cstring>
 #include <stdexcept>
 
@@ -85,9 +86,11 @@ struct __attribute__((packed)) mode_info_t {
     std::uint8_t reserved2[206];
 };
 
-void call(__dpmi_regs r) {
+void call(__dpmi_regs r, const char* what) {
     if (__dpmi_int(0x10, &r) != 0 || r.x.ax != 0x004F) {
-        throw error("Failed to get VESA info");
+        char status[16];
+        std::snprintf(status, sizeof(status), " (AX=%#06X)", r.x.ax);
+        throw error(std::string{"failed to "} + what + status);
     }
 }
 
@@ -99,7 +102,7 @@ auto get_controller_info() -> const controller_info_t& {
         __dpmi_regs r{};
         r.x.ax = 0x4F00;
         r.x.es = info.segment();
-        call(r);
+        call(r, "get controller info");
         info.pull();
         if (std::memcmp(info->signature, "VESA", 4) != 0) {
             throw error("Invalid VESA info returned");
@@ -118,7 +121,7 @@ auto get_mode_info(const std::uint16_t mode) {
     r.x.ax = 0x4F01;
     r.x.cx = mode;
     r.x.es = info.segment();
-    call(r);
+    call(r, "get mode info");
     info.pull();
     return info.get();
 }
@@ -127,7 +130,7 @@ void set_mode(std::uint16_t mode_id) {
     __dpmi_regs r{};
     r.x.ax = 0x4F02;
     r.x.bx = mode_id | 0x4000;
-    call(r);
+    call(r, "set video mode");
 }
 
 void reset_mode() {
@@ -166,7 +169,13 @@ std::vector<mode_info_t> get_modes() {
         if (id == 0xFFFF) {
             break;
         }
-        const auto mode_info = internal::get_mode_info(id);
+        auto mode_info = internal::mode_info_t{};
+        try {
+            mode_info = internal::get_mode_info(id);
+        } catch (const internal::error&) {
+            // some BIOSes list modes which they then refuse to describe
+            continue;
+        }
         if ((mode_info.mode_attributes & 0x01) == 0) {
             // list only hardware supported modes
             continue;
@@ -197,12 +206,19 @@ private:
 };
 
 framebuffer::framebuffer(std::uint16_t mode_id, std::size_t size) {
-    const auto mode_info = internal::get_mode_info(mode_id);
+    // Map the memory before switching the mode, so that a failing mapping
+    // leaves the screen in text mode and the error message stays readable.
+    auto pimpl =
+        std::make_unique<impl>(internal::get_mode_info(mode_id), size);
     internal::set_mode(mode_id);
-    m_pimpl = std::make_unique<impl>(std::move(mode_info), size);
+    m_pimpl = std::move(pimpl);
 }
 
-framebuffer::~framebuffer() { internal::reset_mode(); }
+framebuffer::~framebuffer() {
+    if (m_pimpl) {
+        internal::reset_mode();
+    }
+}
 framebuffer::framebuffer(framebuffer&&) noexcept = default;
 framebuffer& framebuffer::operator=(framebuffer&&) noexcept = default;
 

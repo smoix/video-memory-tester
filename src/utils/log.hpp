@@ -25,9 +25,12 @@ namespace log_internal {
 // Global file pointer for optional file logging
 inline FILE* g_log_file = nullptr;
 
+// Taking const T& (not T&&) makes the std::string overload below win for
+// non-const and temporary strings too, instead of passing the object itself
+// to printf.
 template <typename T>
-auto wrap_arg(T&& arg) {
-    return std::forward<T>(arg);
+auto wrap_arg(const T& arg) {
+    return arg;
 }
 
 inline const char* wrap_arg(const std::string& s) { return s.c_str(); }

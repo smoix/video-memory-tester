@@ -18,6 +18,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <variant>
 #include <vector>
@@ -50,9 +51,12 @@ public:
             }
         }
 
-        // parse arguments
+        // parse arguments, a value may also follow as a separate argument
         for (int i = 1; i < argc; ++i) {
-            parse_argument(argv[i]);
+            const char* next = i + 1 < argc ? argv[i + 1] : nullptr;
+            if (parse_argument(argv[i], next)) {
+                ++i;
+            }
         }
     }
 
@@ -150,7 +154,8 @@ private:
         throw error("unknown parameter: --" + key);
     }
 
-    void parse_argument(const std::string& arg) {
+    // Returns true if the separate value in next was consumed
+    auto parse_argument(const std::string& arg, const char* next) -> bool {
         if (!arg.starts_with("--")) {
             throw error("unknown parameter: " + arg);
         }
@@ -173,9 +178,14 @@ private:
         } else if (eq != std::string::npos) {
             const auto value = arg.substr(eq + 1);
             m_values[key] = from_string(decl, value);
+        } else if (next != nullptr &&
+                   !std::string_view{next}.starts_with("--")) {
+            m_values[key] = from_string(decl, next);
+            return true;
         } else {
             throw error("missing value for --" + key);
         }
+        return false;
     }
 };
 
