@@ -24,6 +24,26 @@ card. Unfortunately it is not possible to tell which chips and how many of those
 are installed on the tested card, so this information has to be provided by the
 user and is used for the result calculations.
 
+For the test the tool switches to the first VBE mode with a linear frame buffer
+of at least 640x480 at 16 bits per pixel. The visible screen is part of the
+tested memory, so it shows the test patterns while the test runs. Afterwards
+the text mode is restored and the result is printed.
+
+# Requirements
+
+- DOS (see the limitations below) and a VBE 2.0 capable graphics card.
+- `CWSDPMI.EXE` in the same directory as `nwvmt.exe` or in the `PATH`. It is
+  the DPMI host every DJGPP program needs and is included in
+  `dpmi/csdpmi7b.zip`.
+
+CWSDPMI tries to create a swap file `c:\cwsdpmi.swp` and prints
+`Warning: cannot open swap file` when that fails, e.g. when booting from a
+floppy without a writable `C:`. The warning is harmless, the tool needs very
+little memory. To get rid of it, either disable the swap file once with
+`cwsparam cwsdpmi.exe` (included in the zip, answer `""` to the paging file
+question), or load CWSDPMI yourself before the test with `cwsdpmi -p -s-` and
+unload it afterwards with `cwsdpmi -u`.
+
 # Usage
 
     nwvmt.exe --bus=<bits> --chips=<n> [--size=<MB>] [--passes=<n>] [--yes] [--log]
@@ -32,20 +52,27 @@ user and is used for the result calculations.
 - `--chips=<int>` (required): Number of memory chips installed on the card.
   The bus width has to split into whole bytes per chip.
 - `--size=<int>` (optional): Manual override for the video memory size in MB,
-  in case it isn't correctly detected via VBE.
+  in case it isn't correctly detected via VBE. Some cards report less than they
+  have, e.g. a Radeon 9600 PRO with 256MB whose VBE BIOS reports 16MB. If the
+  override is larger than what VBE reports, a warning is printed. Only use the
+  real size of the card: a larger value makes the test write past the card's
+  memory into whatever else is mapped at those physical addresses, and the
+  errors then all appear above the real size.
 - `--passes=<int>` (optional): Number of test passes, default 1. `0` repeats
   the test until a key is pressed, which helps to catch faults that only show
   up once the card is warm.
 - `--yes` (optional): Start the test without waiting for [ENTER].
-- `--log` (optional): Enable logging of the card detection and test result to
-  `nwvmt.log` in the current directory.
+- `--log` (optional): Enable logging of the card detection, test result and
+  any error message to `nwvmt.log` in the current directory. The file is
+  overwritten on every run.
 - `--help`: Show usage information.
 
 Values can also be passed as a separate argument (`--bus 128`), which is what
 DOS batch files turn `--bus=128` into. Pressing any key during the test stops
 it after the current pattern.
 
-Running `nwvmt.exe` without any arguments prints the usage information above.
+Running `nwvmt.exe` without any arguments reports the missing required
+parameters and prints the usage information.
 
 Examples:
 
@@ -97,7 +124,8 @@ With this project I finally got to a point which I had on my TODO list for a
 very long time: programming in modern C++ for DOS. So the tool is written in 
 C++20 with STL, exceptions and almost all the fancy stuf. Only iostreams were
 not used because just inclusion of the headers grew the binary footprint of the 
-tool by 300%. The project utilizes DJGPP C++ (12.0) compiler and CMake (3.23).
+tool by 300%. The project utilizes the DJGPP C++ compiler (GCC 12 or newer, the
+Docker image below currently ships GCC 14.2) and CMake (3.23 or newer).
 
 # How to build
 
@@ -106,6 +134,11 @@ Using the same Docker image the CI build uses (no local DJGPP install needed):
     docker run --rm -v "$PWD":/work -w /work jagholin/dosbox-gcc:latest \
         bash -c "apt-get update -qq && apt-get install -y -qq cmake && \
                  cmake -B build -S src -DCMAKE_BUILD_TYPE=Release && cmake --build build"
+
+The result is `build/nwvmt.exe`. The CI additionally compresses it with
+`upx -9`, which shrinks it from about 560KB to about 150KB; this step is
+optional. GitHub Actions builds every pull request, and pushing a `vX.Y.Z` tag
+creates a release with the compressed `nwvmt.exe` attached.
 
 # License
 
